@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ProcessFreshsalesDealJob;
 use Carbon\Carbon;
 use DateTime;
 use GuzzleHttp\Client;
@@ -18,619 +19,636 @@ class WebhookController extends Controller
         between Freshsales, Monday, and Xero
     */
 
-    function automation(Request $request): JsonResponse
-    {
+    // function automation(Request $request): JsonResponse
+    // {
 
-        Log::info('Freshsales webhook hit');
-        Log::info($request->all());
+    //     Log::info('Freshsales webhook hit');
+    //     Log::info($request->all());
 
-        /* 
-            On the development environment, it is recommended to test it using a third party tunnelling tools called ngrok.
-            See https://ngrok.com/docs/getting-started/ for reference
-        */
+    //     /* 
+    //         On the development environment, it is recommended to test it using a third party tunnelling tools called ngrok.
+    //         See https://ngrok.com/docs/getting-started/ for reference
+    //     */
 
-        $rawDealsData = $request->all(); // Getting all the payload / data from Fresh Sales Webhook.
+    //     $rawDealsData = $request->all(); // Getting all the payload / data from Fresh Sales Webhook.
 
-        $unescapedDealsData = array_map(function ($value) {
+    //     $unescapedDealsData = array_map(function ($value) {
 
-            return is_string($value) ? stripslashes($value) : $value;
+    //         return is_string($value) ? stripslashes($value) : $value;
         
-        }, $rawDealsData);
+    //     }, $rawDealsData);
 
-        $dealClosedDate = $unescapedDealsData['deal_closed_date'];
+    //     $dealClosedDate = $unescapedDealsData['deal_closed_date'];
 
-        $formattedDealClosedDate = Carbon::createFromFormat('d-m-Y', $dealClosedDate);
+    //     $formattedDealClosedDate = Carbon::createFromFormat('d-m-Y', $dealClosedDate);
 
-        $mondayApiKey = env('MONDAY_API_KEY'); // Get the API Key that are stored in the .env files. Under no circumstances will this API Key to be exposed to the client.  
+    //     $mondayApiKey = env('MONDAY_API_KEY'); // Get the API Key that are stored in the .env files. Under no circumstances will this API Key to be exposed to the client.  
 
-        /* 
-            Create new board logic
-        */
+    //     /* 
+    //         Create new board logic
+    //     */
 
-        // $createBoardQuery = <<< GQL
+    //     // $createBoardQuery = <<< GQL
 
-        // mutation {
+    //     // mutation {
 
-        //     create_board (
+    //     //     create_board (
 
-        //     board_name: "", 
+    //     //     board_name: "", 
 
-        //     board_kind: public
+    //     //     board_kind: public
 
-        //     workspace_id: 11202839
+    //     //     workspace_id: 11202839
 
-        // ) {
+    //     // ) {
 
-        //         id
+    //     //         id
 
-        //     }
+    //     //     }
 
-        // }
+    //     // }
 
-        // GQL;
+    //     // GQL;
 
-        /* 
-            Create new Group Logic
-        */
+    //     /* 
+    //         Create new Group Logic
+    //     */
 
-        try {
+    //     try {
 
-            $dealName = Str::title($unescapedDealsData['deal_name']);
+    //         $dealName = Str::title($unescapedDealsData['deal_name']);
 
-            $groupName = $dealName;
+    //         $groupName = $dealName;
 
-            // Extract the Group name from Deals Name
+    //         // Extract the Group name from Deals Name
 
-            preg_match('/(\d{1,2})\s+To\s+(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/', $dealName, $matches);
+    //         preg_match('/(\d{1,2})\s+To\s+(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/', $dealName, $matches);
 
-            if ($matches) {
+    //         if ($matches) {
 
-                $startDay = $matches[1]; // 16
+    //             $startDay = $matches[1]; // 16
 
-                $endDay = $matches[2];   // 18
+    //             $endDay = $matches[2];   // 18
 
-                $month = $matches[3];    // June
+    //             $month = $matches[3];    // June
 
-                $year = $matches[4];     // 2025
+    //             $year = $matches[4];     // 2025
 
 
-                // Build full dates
+    //             // Build full dates
 
-                $startDate = Carbon::createFromFormat('d F Y', "$startDay $month $year");
+    //             $startDate = Carbon::createFromFormat('d F Y', "$startDay $month $year");
 
-                $endDate = Carbon::createFromFormat('d F Y', "$endDay $month $year");
-            }
+    //             $endDate = Carbon::createFromFormat('d F Y', "$endDay $month $year");
+    //         }
 
-            $createGroupQuery = <<< GQL
+    //         $createGroupQuery = <<< GQL
             
-            mutation {
+    //         mutation {
             
-                create_group (
+    //             create_group (
                 
-                    board_id: 9348513723,
+    //                 board_id: 9348513723,
                     
-                    group_name: "$groupName", 
+    //                 group_name: "$groupName", 
                     
-                    ) {
+    //                 ) {
                     
-                        id
+    //                     id
                     
-                    }
+    //                 }
                 
-                }
+    //             }
 
-        GQL;
+    //     GQL;
 
-            $client = new Client();
+    //         $client = new Client();
 
-            // Create Group
+    //         // Create Group
 
-            $groupResponse = $client->post('https://api.monday.com/v2', [
+    //         $groupResponse = $client->post('https://api.monday.com/v2', [
 
-                'headers' => [
+    //             'headers' => [
 
-                    'Authorization' => $mondayApiKey,
+    //                 'Authorization' => $mondayApiKey,
 
-                    'Content-Type' => 'application/json',
+    //                 'Content-Type' => 'application/json',
 
-                    'Accepts' => 'application/json'
+    //                 'Accepts' => 'application/json'
 
-                ],
+    //             ],
 
-                'body' => json_encode([
+    //             'body' => json_encode([
 
-                    'query' => $createGroupQuery
+    //                 'query' => $createGroupQuery
 
-                ])
+    //             ])
 
-            ]);
+    //         ]);
 
-            $groupData = json_decode($groupResponse->getBody(), true);
+    //         $groupData = json_decode($groupResponse->getBody(), true);
 
-            $groupId = $groupData['data']['create_group']['id'];
+    //         $groupId = $groupData['data']['create_group']['id'];
 
-            // Create Items in a Group for the First 5 Rows
+    //         // Create Items in a Group for the First 5 Rows
 
-            $firstItemColumnValues = json_encode([
+    //         $firstItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $formattedDealClosedDate->format('Y-m-d')
+    //             'date_mkrter2k' => $formattedDealClosedDate->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $firstEscapedColumnValues = addslashes($firstItemColumnValues);
+    //         $firstEscapedColumnValues = addslashes($firstItemColumnValues);
 
-            $secondItemColumnValues = json_encode([
+    //         $secondItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $formattedDealClosedDate->format('Y-m-d')
+    //             'date_mkrter2k' => $formattedDealClosedDate->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $secondEscapedColumnValues = addslashes($secondItemColumnValues);
+    //         $secondEscapedColumnValues = addslashes($secondItemColumnValues);
 
-            $thirdItemColumnValues = json_encode([
+    //         $thirdItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $formattedDealClosedDate->copy()->addDays(3)->format('Y-m-d')
+    //             'date_mkrter2k' => $formattedDealClosedDate->copy()->addDays(3)->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $thirdEscapedColumnValues = addslashes($thirdItemColumnValues);
+    //         $thirdEscapedColumnValues = addslashes($thirdItemColumnValues);
 
-            $fourthItemColumnValues = json_encode([
+    //         $fourthItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $formattedDealClosedDate->copy()->addDays(4)->format('Y-m-d')
+    //             'date_mkrter2k' => $formattedDealClosedDate->copy()->addDays(4)->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $fourthEscapedColumnValues = addslashes($fourthItemColumnValues);
+    //         $fourthEscapedColumnValues = addslashes($fourthItemColumnValues);
 
-            $fifthItemColumnValues = json_encode([
+    //         $fifthItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $formattedDealClosedDate->copy()->addDays(7)->format('Y-m-d')
+    //             'date_mkrter2k' => $formattedDealClosedDate->copy()->addDays(7)->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $fifthEscapedColumnValues = addslashes($fifthItemColumnValues);
+    //         $fifthEscapedColumnValues = addslashes($fifthItemColumnValues);
 
-            $sixthItemColumnValues = json_encode([
+    //         $sixthItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $startDate->copy()->subDays(60)->format('Y-m-d')
+    //             'date_mkrter2k' => $startDate->copy()->subDays(60)->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $sixthEscapedColumnValues = addslashes($sixthItemColumnValues);
+    //         $sixthEscapedColumnValues = addslashes($sixthItemColumnValues);
 
-            $seventhItemColumnValues = json_encode([
+    //         $seventhItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $startDate->copy()->subDays(55)->format('Y-m-d')
+    //             'date_mkrter2k' => $startDate->copy()->subDays(55)->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $seventhEscapedColumnValues = addslashes($seventhItemColumnValues);
+    //         $seventhEscapedColumnValues = addslashes($seventhItemColumnValues);
 
-            $eighthItemColumnValues = json_encode([
+    //         $eighthItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $startDate->copy()->subDays(50)->format('Y-m-d')
+    //             'date_mkrter2k' => $startDate->copy()->subDays(50)->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $eighthEscapedColumnValues = addslashes($eighthItemColumnValues);
+    //         $eighthEscapedColumnValues = addslashes($eighthItemColumnValues);
 
-            $ninthItemColumnValues = json_encode([
+    //         $ninthItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $startDate->copy()->subDays(50)->format('Y-m-d')
+    //             'date_mkrter2k' => $startDate->copy()->subDays(50)->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $ninthEscapedColumnValues = addslashes($ninthItemColumnValues);
+    //         $ninthEscapedColumnValues = addslashes($ninthItemColumnValues);
 
-            $tenthItemColumnValues = json_encode([
+    //         $tenthItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $startDate->copy()->subDays(30)->format('Y-m-d')
+    //             'date_mkrter2k' => $startDate->copy()->subDays(30)->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $tenthEscapedColumnValues = addslashes($tenthItemColumnValues);
+    //         $tenthEscapedColumnValues = addslashes($tenthItemColumnValues);
 
-            $eleventhItemColumnValues = json_encode([
+    //         $eleventhItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $startDate->copy()->subDays(27)->format('Y-m-d')
+    //             'date_mkrter2k' => $startDate->copy()->subDays(27)->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $eleventhEscapedColumnValues = addslashes($eleventhItemColumnValues);
+    //         $eleventhEscapedColumnValues = addslashes($eleventhItemColumnValues);
 
-            $twelfthItemColumnValues = json_encode([
+    //         $twelfthItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $startDate->copy()->subDays(26)->format('Y-m-d')
+    //             'date_mkrter2k' => $startDate->copy()->subDays(26)->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $twelfthEscapedColumnValues = addslashes($twelfthItemColumnValues);
+    //         $twelfthEscapedColumnValues = addslashes($twelfthItemColumnValues);
 
-            $thirteenthItemColumnValues = json_encode([
+    //         $thirteenthItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $startDate->copy()->subDays(21)->format('Y-m-d')
+    //             'date_mkrter2k' => $startDate->copy()->subDays(21)->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $thirteenthEscapedColumnValues = addslashes($thirteenthItemColumnValues);
+    //         $thirteenthEscapedColumnValues = addslashes($thirteenthItemColumnValues);
 
-            $fourteenthItemColumnValues = json_encode([
+    //         $fourteenthItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $startDate->copy()->subDays(20)->format('Y-m-d')
+    //             'date_mkrter2k' => $startDate->copy()->subDays(20)->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $fourteenthEscapedColumnValues = addslashes($fourteenthItemColumnValues);
+    //         $fourteenthEscapedColumnValues = addslashes($fourteenthItemColumnValues);
 
-            $fifteenthItemColumnValues = json_encode([
+    //         $fifteenthItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $startDate->copy()->subDays(14)->format('Y-m-d')
+    //             'date_mkrter2k' => $startDate->copy()->subDays(14)->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $fifteenthEscapedColumnValues = addslashes($fifteenthItemColumnValues);
+    //         $fifteenthEscapedColumnValues = addslashes($fifteenthItemColumnValues);
 
-            $sixteenthItemColumnValues = json_encode([
+    //         $sixteenthItemColumnValues = json_encode([
 
-                'color_mkrt3w8s' => ['index' => 3],
+    //             'color_mkrt3w8s' => ['index' => 3],
 
-                'date_mkrter2k' => $startDate->copy()->subDays(14)->format('Y-m-d')
+    //             'date_mkrter2k' => $startDate->copy()->subDays(14)->format('Y-m-d')
 
-            ]);
+    //         ]);
 
-            $sixteenthEscapedColumnValues = addslashes($sixteenthItemColumnValues);
+    //         $sixteenthEscapedColumnValues = addslashes($sixteenthItemColumnValues);
 
-            $mondayQuery = <<< GQL
+    //         $mondayQuery = <<< GQL
 
-                mutation{
+    //             mutation{
 
-                    item1: create_item(
+    //                 item1: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "Booking confirmation - sent to customer",
+    //                     item_name: "Booking confirmation - sent to customer",
 
-                        column_values: "$firstEscapedColumnValues"
+    //                     column_values: "$firstEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
-                        item2: create_item(
+    //                 }
+    //                     item2: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "DP Invoice 1 - sent to customer",
+    //                     item_name: "DP Invoice 1 - sent to customer",
 
-                        column_values: "$secondEscapedColumnValues"
+    //                     column_values: "$secondEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
-                        item3: create_item(
+    //                 }
+    //                     item3: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "DP Invoice 1 REMINDER - sent to customer",
+    //                     item_name: "DP Invoice 1 REMINDER - sent to customer",
 
-                        column_values: "$thirdEscapedColumnValues"
+    //                     column_values: "$thirdEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
-                        item4: create_item(
+    //                 }
+    //                     item4: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "DP Invoice 1 - await payment received",
+    //                     item_name: "DP Invoice 1 - await payment received",
 
-                        column_values: "$fourthEscapedColumnValues"
+    //                     column_values: "$fourthEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
-                        item5: create_item(
+    //                 }
+    //                     item5: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "DP Invoice 1 - confirm payment to customer",
+    //                     item_name: "DP Invoice 1 - confirm payment to customer",
 
-                        column_values: "$fifthEscapedColumnValues"
+    //                     column_values: "$fifthEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
-                        item6: create_item(
+    //                 }
+    //                     item6: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "GIF - sent to customer",
+    //                     item_name: "GIF - sent to customer",
 
-                        column_values: "$sixthEscapedColumnValues"
+    //                     column_values: "$sixthEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
-                        item7: create_item(
+    //                 }
+    //                     item7: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "GIF REMINDER - sent to customer",
+    //                     item_name: "GIF REMINDER - sent to customer",
 
-                        column_values: "$seventhEscapedColumnValues"
+    //                     column_values: "$seventhEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
-                        item8: create_item(
+    //                 }
+    //                     item8: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "GIF  - received from customer",
+    //                     item_name: "GIF  - received from customer",
 
-                        column_values: "$eighthEscapedColumnValues"
+    //                     column_values: "$eighthEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
-                        item9: create_item(
+    //                 }
+    //                     item9: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "PASSPORT  - received from customer",
+    //                     item_name: "PASSPORT  - received from customer",
 
-                        column_values: "$sixthEscapedColumnValues"
+    //                     column_values: "$sixthEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
-                        item10: create_item(
+    //                 }
+    //                     item10: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "BALANCE Invoice 2 - sent to customer",
+    //                     item_name: "BALANCE Invoice 2 - sent to customer",
 
-                        column_values: "$tenthEscapedColumnValues"
+    //                     column_values: "$tenthEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
-                        item11: create_item(
+    //                 }
+    //                     item11: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "BALANCE Invoice 2 REMINDER - sent to customer",
+    //                     item_name: "BALANCE Invoice 2 REMINDER - sent to customer",
 
-                        column_values: "$eleventhEscapedColumnValues"
+    //                     column_values: "$eleventhEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
-                        item12: create_item(
+    //                 }
+    //                     item12: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "BALANCE Invoice 2 - await payment received",
+    //                     item_name: "BALANCE Invoice 2 - await payment received",
 
-                        column_values: "$twelfthEscapedColumnValues"
+    //                     column_values: "$twelfthEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
-                        item13: create_item(
+    //                 }
+    //                     item13: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "BALANCE Invoice 2 - confirm payment to customer",
+    //                     item_name: "BALANCE Invoice 2 - confirm payment to customer",
 
-                        column_values: "$thirteenthEscapedColumnValues"
+    //                     column_values: "$thirteenthEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
-                        item14: create_item(
+    //                 }
+    //                     item14: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "GUEST SHEET - create",
+    //                     item_name: "GUEST SHEET - create",
 
-                        column_values: "$fourteenthEscapedColumnValues"
+    //                     column_values: "$fourteenthEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
-                        item15: create_item(
+    //                 }
+    //                     item15: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "GUEST SHEET - send to crew",
+    //                     item_name: "GUEST SHEET - send to crew",
 
-                        column_values: "$fifteenthEscapedColumnValues"
+    //                     column_values: "$fifteenthEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
-                        item16: create_item(
+    //                 }
+    //                     item16: create_item(
 
-                        board_id: 9348513723,
+    //                     board_id: 9348513723,
 
-                        group_id: "$groupId",
+    //                     group_id: "$groupId",
 
-                        item_name: "GUEST REMINDER - send trip reminder",
+    //                     item_name: "GUEST REMINDER - send trip reminder",
 
-                        column_values: "$sixteenthEscapedColumnValues"
+    //                     column_values: "$sixteenthEscapedColumnValues"
 
-                    ) {
+    //                 ) {
 
-                        id
+    //                     id
 
-                        name
+    //                     name
 
-                    }
+    //                 }
 
-                }
-            GQL;
+    //             }
+    //         GQL;
 
-            $itemResponse = $client->post('https://api.monday.com/v2', [
+    //         $itemResponse = $client->post('https://api.monday.com/v2', [
 
-                'headers' => [
+    //             'headers' => [
 
-                    'Authorization' => $mondayApiKey,
+    //                 'Authorization' => $mondayApiKey,
 
-                    'Content-Type' => 'application/json',
+    //                 'Content-Type' => 'application/json',
 
-                    'Accepts' => 'application/json'
+    //                 'Accepts' => 'application/json'
 
-                ],
+    //             ],
 
-                'body' => json_encode([
+    //             'body' => json_encode([
 
-                    'query' => $mondayQuery
+    //                 'query' => $mondayQuery
 
-                ])
+    //             ])
 
-            ]);
+    //         ]);
 
-            return response()->json([
+    //         return response()->json([
 
-                'status' => 'success',
+    //             'status' => 'success',
 
-                'message' => 'Group and items created successfully',
+    //             'message' => 'Group and items created successfully',
 
-                'group' => $groupData,
+    //             'group' => $groupData,
 
-                'items' => json_decode($itemResponse->getBody(), true),
+    //             'items' => json_decode($itemResponse->getBody(), true),
 
-            ]);
-        } catch (\GuzzleHttp\Exception\ClientException $e) {
+    //         ]);
+    //     } catch (\GuzzleHttp\Exception\ClientException $e) {
 
-            return response()->json([
+    //         return response()->json([
 
-                'status' => 'error',
+    //             'status' => 'error',
 
-                'message' => $e->getMessage()
+    //             'message' => $e->getMessage()
 
-            ], 500);
-        }
+    //         ], 500);
+    //     }
+    // }
+
+    function automation(Request $request): JsonResponse {
+
+        // Log::info('RAW deal name:', ['deal_name' => $request['deal_name']]);
+
+        ProcessFreshsalesDealJob::dispatch($request->all());
+
+        // return response()->json($request);
+
+        return response()->json([
+
+            'status' => 'queued',
+            
+            'message' => 'Deal has been queued for processing.'
+        
+        ]);
     }
 }
