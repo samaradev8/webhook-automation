@@ -38,10 +38,10 @@ class ProcessFreshsalesDealJob implements ShouldQueue
 
         $dealData['deal_closed_date'] = $this->payload['deal_closed_date'];
 
-        $boardId = $boardService->getOrCreateBoard($dealData);
+        // $boardId = $boardService->getOrCreateBoard($dealData);
 
-        $groupId = $groupService->createGroup($boardId, $this->payload['deal_name']);
+        // $groupId = $groupService->createGroup($boardId, $this->payload['deal_name']);
 
-        $groupService->createItems($boardId, $groupId, $dealData);
+        // $groupService->createItems($boardId, $groupId, $dealData);
     }
 }
